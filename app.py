@@ -1,96 +1,266 @@
+# Full Streamlit App: CYBERM00D Kasina Studio PRO (High-Fidelity + Covers)
+# Author: ChatGPT
+
 import streamlit as st
 import pandas as pd
+import numpy as np
 import io
 import datetime
+import json
+import imageio
+from PIL import Image, ImageDraw
+import matplotlib.pyplot as plt
 
-st.set_page_config(page_title="Kasina KBS Generator", layout="wide")
+st.set_page_config(page_title="CYBERM00D • Kasina Studio PRO", layout="wide")
 
-st.title("🎧 Kasina KBS Session Generator")
-st.caption("Génération automatique de fichiers .KBS conformes au format officiel MindPlace.")
-st.markdown("Format basé sur : _Kasina Basic Session Format_ :contentReference[oaicite:1]{index=1}")
+# ===========================================
+# Branding / Header
+# ===========================================
 
-st.subheader("Paramètres globaux")
+st.markdown("""
+# CYBERM00D — Kasina Studio PRO
+### Générateur professionnel de sessions AVS (.KBS)
+- Prévisualisation DreamMachine + Kasina  
+- Mode Haute Fidélité (Gauche / Droite réel)  
+- Timeline complète (Beat / RGB / Intensité)  
+- Générateur automatique de covers  
+---
+""")
 
-color_control_mode = st.selectbox(
-    "Color Control Mode",
-    [0, 1, 2, 3],
-    index=3,
-    help="""0: device ColorSet • 1: global ColorSet • 2: ColorSet par segment • 3: RGB personnalisé"""
-)
+# ===========================================
+# High-fidelity Kasina frame generator (L/R split)
+# ===========================================
 
-global_colorset = st.number_input("Global ColorSet (si Mode = 1)", min_value=1, max_value=16, value=1)
+def generate_hifi_frame(beat, rgb_left, rgb_right, frame_idx):
+    img = Image.new("RGB", (800, 400), (0, 0, 0))
+    draw = ImageDraw.Draw(img)
 
-st.markdown("---")
-st.subheader("Segments de la session")
+    pulse = 0.5 + 0.5 * np.sin(frame_idx * beat * 0.18)
 
-default_segment = {
-    "Time": 60.0,
-    "Beat": 8.0,
-    "L_Pitch": 110.0,
-    "R_Pitch": 118.0,
-    "L_Phase": 50,
-    "S_Phase": 50,
-    "L_AMDepth": 80,
-    "S_AMDepth": 20,
-    "Bright": 60,
-    "Vol": 50,
-    "SndWF": "Sine",
-    "SndModWF": "Sine",
-    "LgtModWF": "Sine",
-    "LgtModPW": 0,
-    "SndPW": 0,
-    "SndModPW": 0,
-    "SegCS": 1,
-    "Red": 50,
-    "Green": 50,
-    "Blue": 50
-}
+    lx, ly = 200, 200
+    pr = int(40 + pulse * 30)
+    draw.ellipse((lx-pr, ly-pr, lx+pr, ly+pr), fill=rgb_left)
 
-waveforms = ["Sine", "Square", "Triangle", "Saw_Up", "Saw_Down", "Pink_Noise"]
+    rx, ry = 600, 200
+    draw.ellipse((rx-pr, ry-pr, rx+pr, ry+pr), fill=rgb_right)
 
-num_segments = st.number_input("Nombre de segments", 1, 50, 3)
+    return img
 
-segments = []
+# ===========================================
+# DreamMachine + Kasina Mixed Preview
+# ===========================================
 
-for i in range(num_segments):
-    st.markdown(f"### Segment {i+1}")
-    with st.expander(f"Configurer le Segment {i+1}", expanded=False):
+def generate_visual_frame(beat, rgb, waveform, frame_idx):
+    img = Image.new("RGB", (600, 600), (0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    r, g, b = rgb
+    pulse = 0.5 + 0.5 * np.sin(frame_idx * beat * 0.2)
 
-        seg = {}
-        for key in default_segment:
-            if key in ["SndWF", "SndModWF", "LgtModWF"]:
-                seg[key] = st.selectbox(f"{key}", waveforms, key=f"{key}_{i}")
-            elif key == "SegCS":
-                seg[key] = st.number_input(f"{key}", 1, 16, 1, key=f"{key}_{i}")
-            elif key in ["Red", "Green", "Blue"]:
-                seg[key] = st.slider(f"{key} (%)", 0, 100, 50, key=f"{key}_{i}")
-            else:
-                seg[key] = st.number_input(f"{key}", value=float(default_segment[key]), key=f"{key}_{i}")
+    cx, cy = 300, 300
+    for radius in range(40, 300, 25):
+        color = (int(r*(radius/300)), int(g*(radius/300)), int(b*(radius/300)))
+        width = int(4 + pulse * 3)
+        draw.ellipse((cx-radius, cy-radius, cx+radius, cy+radius),
+                     outline=color, width=width)
 
-        segments.append(seg)
+    pr = int(30 + 20 * pulse)
+    draw.ellipse((cx-pr, cy-pr, cx+pr, cy+pr), fill=(r, g, b))
 
-st.markdown("---")
-st.subheader("📦 Export du fichier .KBS")
+    return img
 
-if st.button("Générer le fichier KBS"):
-    output = io.StringIO()
+# ===========================================
+# Cover Image Generator
+# ===========================================
 
-    output.write(f"# Generated with Streamlit | {datetime.datetime.now()}\n")
-    output.write(f"ColorControlMode: {color_control_mode}\n")
-    output.write(f"GlobalColorSet: {global_colorset}\n\n")
+def generate_cover(title, duration, rgb):
+    img = Image.new("RGB", (1024, 1024), (0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    r, g, b = rgb
+
+    cx, cy = 512, 512
+    for radius in range(50, 500, 50):
+        color = (
+            int(r*(radius/500)),
+            int(g*(radius/500)),
+            int(b*(radius/500))
+        )
+        draw.ellipse((cx-radius, cy-radius, cx+radius, cy+radius),
+                     outline=color, width=8)
+
+    draw.text((60, 60), "CYBERM00D", fill=(r, g, b))
+    draw.text((60, 200), title, fill=(255, 255, 255))
+    draw.text((60, 300), f"Durée : {duration} min", fill=(200, 200, 200))
+
+    return img
+
+# ===========================================
+# Generate KBS file
+# ===========================================
+
+def generate_kbs_file(global_cfg, segments):
+    buf = io.StringIO()
+    buf.write(f"# Generated by CYBERM00D Kasina Studio PRO — {datetime.datetime.now()}\n")
+    buf.write(f"ColorControlMode: {global_cfg['color_control_mode']}\n")
+    buf.write(f"GlobalColorSet: {global_cfg['global_colorset']}\n\n")
 
     for i, seg in enumerate(segments):
-        output.write(f"# Segment {i+1}\n")
+        buf.write(f"# Segment {i+1}\n")
         for k, v in seg.items():
-            output.write(f"{k}: {v}\n")
-        output.write("\n")
+            buf.write(f"{k}: {v}\n")
+        buf.write("\n")
 
-    kbs_data = output.getvalue().encode("utf-8")
-    st.download_button(
-        label="💾 Télécharger le fichier KBS",
-        data=kbs_data,
-        file_name="session.kbs",
-        mime="text/plain"
+    return buf.getvalue().encode("utf-8")
+
+# ===========================================
+# Sidebar Controls
+# ===========================================
+
+st.sidebar.title("⚙️ Paramètres globaux")
+
+color_control_mode = st.sidebar.selectbox("Color Control Mode", [0, 1, 2, 3], index=3)
+global_colorset = st.sidebar.number_input("Global ColorSet", min_value=1, max_value=16, value=1)
+
+# ===========================================
+# Segments Editor
+# ===========================================
+
+st.subheader("🧩 Segments de la session")
+
+if "segments" not in st.session_state:
+    st.session_state.segments = []
+
+if st.button("Ajouter un segment"):
+    st.session_state.segments.append({
+        "Time": 60, "Beat": 8,
+        "L_Pitch": 110, "R_Pitch": 118,
+        "L_AMDepth": 80, "S_AMDepth": 20,
+        "Bright": 60, "Vol": 50,
+        "Red": 50, "Green": 50, "Blue": 50,
+        "SndWF": "Sine", "SndModWF": "Sine", "LgtModWF": "Sine"
+    })
+
+df = pd.DataFrame(st.session_state.segments)
+edited_df = st.data_editor(df)
+segments = edited_df.to_dict("records")
+st.session_state.segments = segments
+
+# ===========================================
+# High Fidelity Preview
+# ===========================================
+
+st.subheader("👁️ Prévisualisation Haute Fidélité (G/D)")
+
+if segments:
+    seg = segments[0]
+    rgb_left = (seg["Red"], 0, seg["Blue"])
+    rgb_right = (0, seg["Green"], seg["Blue"])
+
+    frame = generate_hifi_frame(seg["Beat"], rgb_left, rgb_right, 1)
+    st.image(frame, caption="Simu Kasina G/D")
+
+# ===========================================
+# DreamMachine + Kasina Preview
+# ===========================================
+
+st.subheader("🌈 Prévisualisation Psychédélique")
+
+if segments:
+    seg = segments[0]
+    f = generate_visual_frame(
+        seg["Beat"],
+        (seg["Red"], seg["Green"], seg["Blue"]),
+        seg["LgtModWF"],
+        2
     )
+    st.image(f, caption="DreamMachine Mix")
 
-    st.success("Fichier .kbs généré avec succès ! 🎉")
+# ===========================================
+# Timeline Generator
+# ===========================================
+
+st.subheader("📈 Timeline")
+
+def plot_timeline(segments):
+    times = []
+    beat = []
+    bright = []
+    red = []
+    green = []
+    blue = []
+
+    t = 0
+
+    for seg in segments:
+        duration = seg["Time"]
+        steps = 20
+        for i in range(steps):
+            p = i/steps
+            times.append(t + p * duration)
+            beat.append(seg["Beat"])
+            bright.append(seg["Bright"])
+            red.append(seg["Red"])
+            green.append(seg["Green"])
+            blue.append(seg["Blue"])
+        t += duration
+
+    fig, ax = plt.subplots(4, 1, figsize=(10, 12), sharex=True)
+
+    ax[0].plot(times, beat, color="white"); ax[0].set_ylabel("Beat")
+    ax[1].plot(times, bright, color="yellow"); ax[1].set_ylabel("Bright")
+    ax[2].plot(times, red, color="red")
+    ax[2].plot(times, green, color="green")
+    ax[2].plot(times, blue, color="blue")
+    ax[2].set_ylabel("RGB")
+    ax[3].set_xlabel("Temps (s)")
+
+    fig.patch.set_facecolor("#000000")
+    for a in ax:
+        a.set_facecolor("#101010")
+        a.grid(color="gray", linestyle="--", alpha=0.3)
+
+    return fig
+
+if st.button("Générer timeline"):
+    fig = plot_timeline(segments)
+    st.pyplot(fig)
+
+# ===========================================
+# Cover Generator
+# ===========================================
+
+st.subheader("🎨 Générateur de Cover")
+
+title = st.text_input("Titre", "Session personnalisée")
+duration = st.number_input("Durée (min)", 1, 300, 20)
+
+if st.button("Générer Cover"):
+    if segments:
+        rgb = (segments[0]["Red"], segments[0]["Green"], segments[0]["Blue"])
+    else:
+        rgb = (80, 40, 120)
+
+    cover = generate_cover(title, duration, rgb)
+    cover_path = "/mnt/data/cover.png"
+    cover.save(cover_path)
+
+    st.image(cover_path, caption="Cover générée")
+    st.download_button("Télécharger Cover", open(cover_path,"rb"), file_name="cover.png")
+
+# ===========================================
+# Export KBS File
+# ===========================================
+
+st.subheader("📦 Export KBS")
+
+if st.button("Exporter fichier .KBS"):
+    global_cfg = {
+        "color_control_mode": color_control_mode,
+        "global_colorset": global_colorset
+    }
+    kbs = generate_kbs_file(global_cfg, segments)
+    st.download_button(
+        "💾 Télécharger session.kbs",
+        data=kbs,
+        file_name="session.kbs"
+    )
+    st.success("Export réussi !")
