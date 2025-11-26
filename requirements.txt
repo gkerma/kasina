@@ -4,6 +4,5 @@ numpy
 io
 datetime
 json
-imageio
 PIL
 matplotlib
